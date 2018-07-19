@@ -1,0 +1,156 @@
+---
+title: "Practical Machine Learning"
+author: "Thiago Almeida"
+date: "18 de julho de 2018"
+output: html_document
+---
+
+```{r setup, echo = FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE, cache.lazy = FALSE, warning=FALSE, message=FALSE)
+library(caret)
+library(rattle)
+```
+
+## Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+Human Activity Recognition - HAR - has emerged as a key research area in the last years and is gaining increasing attention by the pervasive computing research community (see picture below, that illustrates the increasing number of publications in HAR with wearable accelerometers), especially for the development of context-aware systems. There are many potential applications for HAR, like: elderly monitoring, life log systems for monitoring energy expenditure and for supporting weight-loss programs, and digital assistants for weight lifting exercises
+
+## Loading Data
+
+Loading data from web.
+
+```{r load}
+
+#load train
+urltrain <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE,na.strings = c("", "NA"))
+urltest <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE,na.strings = c("", "NA"))
+
+```
+
+## Visualize Data
+
+```{r visualize}
+
+#visualize data
+str(urltrain)
+
+```
+
+## Cleaning Data
+
+In this dataset there are to many NA values. 
+In this step the NA columns will be excluded.
+The same columns will be excluded in test data.
+
+```{r clean}
+
+#exclude NA columns 
+train <- urltrain[, colSums(is.na(urltrain)) == 0]
+test <- urltest[, colSums(is.na(urltrain)) == 0]
+
+
+```
+
+There are correlated columns that can be excluded.
+
+```{r correlation}
+
+#exclude columns with high correlation
+cor.matrix <- cor(train[sapply(train, is.numeric)])
+c <- findCorrelation(cor.matrix, cutoff = .90)
+train <- train[,-c]
+
+```
+
+
+## Spliting Validation Dataset
+
+The train dataset will be splitted for validation.
+
+```{r split}
+
+#seed
+set.seed(9876)
+
+#split 75%
+inTrain <- createDataPartition(train$classe, p=0.75, list=FALSE)
+train <- train[inTrain,]
+valid <- train[-inTrain,]
+
+
+```
+
+## Decision Tree
+
+The first method will be Decision Tree using the Caret library
+
+```{r tree}
+
+#control
+control <- trainControl(method="cv", number=3, classProbs=TRUE, allowParallel=TRUE, verboseIter = FALSE)
+
+#model
+fit_rpart <- train(classe ~ ., data = train, method = "rpart", trControl = control)
+
+#plot
+fancyRpartPlot(fit_rpart$finalModel)
+
+#predict
+pred_rpart <- predict(fit_rpart, valid)
+
+confusion_rpart <- confusionMatrix(valid$classe, pred_rpart)
+
+```
+
+The accuracy of this method is `r confusion_rpart$overall[1]`
+
+## Randon Forest
+
+The second method will be Randon Forest using the Caret library
+
+```{r forest}
+
+#model
+fit_rf <- train(classe ~ ., data = train, method = "rf", trControl = control, ntree=500, keep.forest=TRUE, importance=TRUE)
+
+#predict
+pred_rf <- predict(fit_rf, valid)
+
+confusion_rf <- confusionMatrix(valid$classe, pred_rf)
+
+```
+
+The accuracy of this method is `r confusion_rf$overall[1]`
+
+## Gradient Boosting Method
+
+The second method will be Gradient Boosting Method using the Caret library
+
+```{r gbm}
+
+#model
+fit_gbm <- train(classe ~ ., data = train, method = "gbm", trControl = control)
+
+#predict
+pred_gbm <- predict(fit_gbm, valid)
+
+confusion_gbm <- confusionMatrix(valid$classe, pred_gbm)
+
+
+```
+
+The accuracy of this method is `r confusion_gbm$overall[1]`
+
+## Using Test Data
+
+Both gbm and rf accuracy is good. For the test data will be used rf method
+
+```{r test}
+
+#predict
+pred_test <- predict(fit_rf, test)
+
+
+```
